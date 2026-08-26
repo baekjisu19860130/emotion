@@ -150,6 +150,7 @@ export default function App() {
                 onSelectStudentName={setSelectedStudentName}
                 onNavigateStep={(step) => setParticipantStep(step)}
                 responses={responses}
+                onOpenQR={() => setIsQRModalOpen(true)}
               />
             )}
 

@@ -12,8 +12,15 @@ import {
   Calendar,
   Layers,
   ChevronRight,
+  Link2,
+  QrCode,
+  Check,
+  Copy,
+  MessageSquareShare,
+  Share2,
 } from 'lucide-react';
 import { SessionData, EmotionResponse } from '../types';
+import { getPublicShareUrl } from '../utils/shareUrl';
 
 interface MainSelectorProps {
   sessions: SessionData[];
@@ -23,6 +30,7 @@ interface MainSelectorProps {
   onSelectStudentName: (name: string) => void;
   onNavigateStep: (step: 'before' | 'after') => void;
   responses: EmotionResponse[];
+  onOpenQR: () => void;
 }
 
 export const MainSelector: React.FC<MainSelectorProps> = ({
@@ -33,12 +41,43 @@ export const MainSelector: React.FC<MainSelectorProps> = ({
   onSelectStudentName,
   onNavigateStep,
   responses,
+  onOpenQR,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCustomNameInput, setIsCustomNameInput] = useState(false);
   const [customName, setCustomName] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedMsg, setCopiedMsg] = useState(false);
 
   const currentSession = sessions.find((s) => s.id === selectedSessionId) || sessions[0];
+
+  const handleCopyLink = async () => {
+    const url = getPublicShareUrl();
+    if (!url) return;
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      }
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCopyInviteMsg = async () => {
+    const url = getPublicShareUrl();
+    const message = `[마음 출석부: Before & After] 🌿\n\n📌 수업명: ${currentSession?.title || '마음 출석부'}\n📅 일시: ${currentSession?.date || ''}\n\n👇 아래 링크로 접속하여 (로그인 없이) 수업 전 기분과 소감을 남겨주세요!\n🔗 ${url}`;
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(message);
+      }
+      setCopiedMsg(true);
+      setTimeout(() => setCopiedMsg(false), 2000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Filter student roster
   const roster = currentSession?.roster || [];
@@ -74,9 +113,80 @@ export const MainSelector: React.FC<MainSelectorProps> = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+    <div className="max-w-4xl mx-auto px-4 py-6 sm:py-10">
+      {/* Top Quick Share Bar for Trainees & Teachers */}
+      <div className="mb-6 p-4 sm:p-4.5 bg-[#fcfcf9] rounded-2xl border border-[#e2e2d8] shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-9 h-9 rounded-xl bg-[#5a5a40] flex items-center justify-center text-[#f5f5f0] shrink-0">
+            <Share2 className="w-4 h-4 text-[#d4c5a9]" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-[#2d2d26] flex items-center space-x-1.5">
+              <span>참여자(학생/연수생) 접속 링크 & QR코드</span>
+            </div>
+            <p className="text-[11px] text-[#7a7a6e]">
+              학생들에게 링크를 보내거나 프로젝터 화면에 QR을 띄워 바로 참여시키세요.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {/* Link Copy Button */}
+          <button
+            id="btn-main-copy-link"
+            type="button"
+            onClick={handleCopyLink}
+            className="flex-1 sm:flex-none inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 bg-[#ebf0ea] hover:bg-[#dfeade] border border-[#c8d9c6] text-[#3d5a3c] text-xs font-bold rounded-xl transition-all shadow-2xs"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-[#3d5a3c]" />
+                <span>링크 복사 완료!</span>
+              </>
+            ) : (
+              <>
+                <Link2 className="w-3.5 h-3.5 text-[#3d5a3c]" />
+                <span>접속 링크 복사</span>
+              </>
+            )}
+          </button>
+
+          {/* QR Code Generate / View Button */}
+          <button
+            id="btn-main-open-qr"
+            type="button"
+            onClick={onOpenQR}
+            className="flex-1 sm:flex-none inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 bg-[#5a5a40] hover:bg-[#484833] text-[#f5f5f0] text-xs font-bold rounded-xl transition-all shadow-2xs"
+          >
+            <QrCode className="w-3.5 h-3.5 text-[#d4c5a9]" />
+            <span>QR코드 생성 / 띄우기</span>
+          </button>
+
+          {/* Kakao / Chat Message Copy Button */}
+          <button
+            id="btn-main-copy-msg"
+            type="button"
+            onClick={handleCopyInviteMsg}
+            title="카카오톡/단톡방용 초대 메시지 복사"
+            className="hidden md:inline-flex items-center space-x-1.5 px-3 py-2 bg-white hover:bg-[#f0f0e8] border border-[#e2e2d8] text-[#4a4a40] text-xs font-semibold rounded-xl transition-all shadow-2xs"
+          >
+            {copiedMsg ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-[#3d5a3c]" />
+                <span className="text-[#3d5a3c]">초대문구 복사됨</span>
+              </>
+            ) : (
+              <>
+                <MessageSquareShare className="w-3.5 h-3.5 text-[#5a5a40]" />
+                <span>단톡방 초대문구</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* Intro Hero Badge */}
-      <div className="text-center mb-8 sm:mb-10">
+      <div className="text-center mb-7 sm:mb-9">
         <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#ebf0ea] border border-[#c8d9c6] text-[#3d5a3c] text-xs font-semibold mb-3">
           <Sparkles className="w-3.5 h-3.5 text-[#5a5a40]" />
           <span>감정 기반 참여형 교육 체크인</span>

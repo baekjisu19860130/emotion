@@ -28,9 +28,13 @@ export const AdminGasTab: React.FC<AdminGasTabProps> = ({
   onDownloadCSV,
 }) => {
   const [copiedCode, setCopiedCode] = useState(false);
-  const [webhookInput, setWebhookInput] = useState(gasConfig.webhookUrl || '');
+  const [webhookInput, setWebhookInput] = useState(
+    gasConfig.webhookUrl || AttendanceStorage.DEFAULT_GAS_URL
+  );
   const [isTesting, setIsTesting] = useState(false);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [bulkSyncResult, setBulkSyncResult] = useState<string | null>(null);
 
   const gasCode = AttendanceStorage.generateGoogleAppsScriptCode();
 
@@ -50,8 +54,22 @@ export const AdminGasTab: React.FC<AdminGasTabProps> = ({
     alert('구글 앱스 스크립트(GAS) 웹앱 URL이 저장되었습니다!');
   };
 
+  const handleBulkSync = async () => {
+    setIsSyncingAll(true);
+    setBulkSyncResult(null);
+    try {
+      const res = await AttendanceStorage.syncAllResponsesToGas(session.id);
+      setBulkSyncResult(`총 ${res.total}건 중 ${res.success}건의 응답 데이터가 구글 시트로 성공적으로 전송되었습니다.`);
+    } catch (err: any) {
+      setBulkSyncResult('동기화 중 오류가 발생했습니다.');
+    } finally {
+      setIsSyncingAll(false);
+    }
+  };
+
   const handleTestConnection = async () => {
-    if (!webhookInput.trim()) {
+    const targetUrl = webhookInput.trim() || AttendanceStorage.DEFAULT_GAS_URL;
+    if (!targetUrl) {
       alert('먼저 배포된 Google Apps Script 웹앱 URL을 입력해주세요.');
       return;
     }
@@ -59,7 +77,7 @@ export const AdminGasTab: React.FC<AdminGasTabProps> = ({
     setTestResult(null);
 
     try {
-      await fetch(webhookInput.trim(), {
+      await fetch(targetUrl, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
@@ -115,12 +133,18 @@ export const AdminGasTab: React.FC<AdminGasTabProps> = ({
 
       {/* Webhook Connection Card */}
       <div className="bg-[#fcfcf9] rounded-2xl border border-[#e2e2d8] p-5 sm:p-6 shadow-2xs">
-        <h4 className="text-sm font-bold text-[#2d2d26] mb-2 flex items-center space-x-2">
-          <Link2 className="w-4 h-4 text-[#5a5a40]" />
-          <span>실시간 구글 시트 웹앱 URL 연동 설정</span>
-        </h4>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-bold text-[#2d2d26] flex items-center space-x-2">
+            <Link2 className="w-4 h-4 text-[#5a5a40]" />
+            <span>실시간 구글 시트 웹앱 URL 연동 설정</span>
+          </h4>
+          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-[#ebf0ea] text-[#3d5a3c] text-xs font-bold border border-[#c8d9c6]">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#3d5a3c]" />
+            <span>실시간 자동 전송 활성화됨</span>
+          </span>
+        </div>
         <p className="text-xs text-[#7a7a6e] mb-4">
-          아래 스크립트를 구글 스프레드시트에 배포한 후 생성된 [웹 앱 URL]을 등록하면, 참여자가 제출할 때마다 구글 시트에 실시간 자동 기록됩니다.
+          선생님께서 배포하신 Google Apps Script 웹 앱 URL이 성공적으로 등록되었습니다. 학생/연수생이 제출할 때마다 구글 스프레드시트에 즉시 자동 기록됩니다.
         </p>
 
         <form onSubmit={handleSaveWebhook} className="flex flex-col sm:flex-row gap-2">
@@ -145,12 +169,29 @@ export const AdminGasTab: React.FC<AdminGasTabProps> = ({
           >
             {isTesting ? '테스트 전송 중...' : '연동 테스트'}
           </button>
+          <button
+            type="button"
+            onClick={handleBulkSync}
+            disabled={isSyncingAll}
+            className="inline-flex items-center space-x-1 px-4 py-2 bg-[#3d5a3c] hover:bg-[#2d432c] text-[#f5f5f0] text-xs sm:text-sm font-bold rounded-xl transition-colors shadow-2xs"
+            title="현재 수업의 모든 응답을 구글 시트로 즉시 일괄 전송합니다"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-spin' : ''}`} />
+            <span>{isSyncingAll ? '일괄 전송 중...' : '현재 데이터 전체 시트 전송'}</span>
+          </button>
         </form>
 
         {testResult && (
           <div className="mt-3 p-3 rounded-xl bg-[#ebf0ea] border border-[#c8d9c6] text-xs font-semibold text-[#3d5a3c] flex items-center space-x-2">
             <CheckCircle2 className="w-4 h-4 text-[#3d5a3c] shrink-0" />
             <span>{testResult}</span>
+          </div>
+        )}
+
+        {bulkSyncResult && (
+          <div className="mt-3 p-3 rounded-xl bg-[#eaf0f2] border border-[#cadbe1] text-xs font-semibold text-[#3d5863] flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-[#3d5863] shrink-0" />
+            <span>{bulkSyncResult}</span>
           </div>
         )}
       </div>

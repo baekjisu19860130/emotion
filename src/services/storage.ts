@@ -174,17 +174,27 @@ export class AttendanceStorage {
   }
 
   // --- GAS Config ---
+  static readonly DEFAULT_GAS_URL =
+    'https://script.google.com/macros/s/AKfycbxB1XK83dovHx3raIreNDxD1vmSzqDeatFoFE7R7j3gKwpr7HGbCH43k4gsNRMGmjwusw/exec';
+
   static getGasConfig(): GasConfig {
     try {
       const saved = localStorage.getItem(GAS_CONFIG_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.webhookUrl) {
+          return parsed;
+        }
+      }
     } catch (e) {
       console.warn('Failed to load gas config', e);
     }
-    return {
-      webhookUrl: '',
-      autoSync: false,
+    const initialConfig: GasConfig = {
+      webhookUrl: this.DEFAULT_GAS_URL,
+      autoSync: true,
     };
+    localStorage.setItem(GAS_CONFIG_KEY, JSON.stringify(initialConfig));
+    return initialConfig;
   }
 
   static saveGasConfig(config: GasConfig) {
@@ -193,13 +203,14 @@ export class AttendanceStorage {
 
   static async syncToGasWebhook(response: EmotionResponse): Promise<boolean> {
     const config = this.getGasConfig();
-    if (!config.webhookUrl || !config.webhookUrl.startsWith('http')) {
+    const targetUrl = config.webhookUrl || this.DEFAULT_GAS_URL;
+    if (!targetUrl || !targetUrl.startsWith('http')) {
       return false;
     }
 
     try {
       // Send as POST payload to Google Apps Script Web App
-      await fetch(config.webhookUrl, {
+      await fetch(targetUrl, {
         method: 'POST',
         mode: 'no-cors', // Google Apps Script Web App redirect standard
         headers: {
@@ -229,6 +240,21 @@ export class AttendanceStorage {
       console.error('GAS sync error:', err);
       return false;
     }
+  }
+
+  static async syncAllResponsesToGas(sessionId?: string): Promise<{ success: number; total: number }> {
+    const responses = this.getResponses();
+    const targetList = sessionId ? responses.filter((r) => r.sessionId === sessionId) : responses;
+    let successCount = 0;
+
+    for (const item of targetList) {
+      const ok = await this.syncToGasWebhook(item);
+      if (ok) successCount++;
+      // small delay to prevent rate limit
+      await new Promise((r) => setTimeout(r, 120));
+    }
+
+    return { success: successCount, total: targetList.length };
   }
 
   // --- Matching Before & After ---
