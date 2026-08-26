@@ -19,6 +19,7 @@ import {
   BeforeAfterPair,
   GasConfig,
   SupabaseConfig,
+  SyncStatus,
 } from '../../types';
 import { AdminSummaryTab } from './AdminSummaryTab';
 import { AdminMatchingTab } from './AdminMatchingTab';
@@ -27,7 +28,7 @@ import { AdminSessionTab } from './AdminSessionTab';
 import { AdminEmotionTab } from './AdminEmotionTab';
 import { AdminGasTab } from './AdminGasTab';
 import { AdminSupabaseTab } from './AdminSupabaseTab';
-import { Database } from 'lucide-react';
+import { Database, RefreshCw, Check, AlertCircle } from 'lucide-react';
 
 interface AdminDashboardProps {
   sessions: SessionData[];
@@ -38,6 +39,8 @@ interface AdminDashboardProps {
   emotionWords: EmotionWord[];
   gasConfig: GasConfig;
   supabaseConfig: SupabaseConfig;
+  syncStatus: SyncStatus;
+  onManualSync: () => void;
   onUpdateGasConfig: (config: GasConfig) => void;
   onUpdateSupabaseConfig: (config: SupabaseConfig) => void;
   onRefreshCloudData: () => Promise<void>;
@@ -69,6 +72,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   emotionWords,
   gasConfig,
   supabaseConfig,
+  syncStatus,
+  onManualSync,
   onUpdateGasConfig,
   onUpdateSupabaseConfig,
   onRefreshCloudData,
@@ -112,6 +117,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           {/* Quick Buttons */}
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              id="btn-admin-manual-sync"
+              onClick={onManualSync}
+              disabled={syncStatus === 'syncing'}
+              title="클라우드 및 로컬 실시간 동기화"
+              className={`inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-2xs ${
+                syncStatus === 'syncing'
+                  ? 'bg-[#f2f2eb] text-[#5a5a40] border border-[#d6d6c8] cursor-wait'
+                  : syncStatus === 'synced'
+                  ? 'bg-[#ebf0ea] text-[#3d5a3c] border border-[#c8d9c6] hover:bg-[#dfeade]'
+                  : syncStatus === 'error'
+                  ? 'bg-[#fcedeb] text-[#a84242] border border-[#f0c2bd] hover:bg-[#fae2df]'
+                  : 'bg-white hover:bg-[#eaeae0] text-[#383830] border border-[#e2e2d8]'
+              }`}
+            >
+              {syncStatus === 'syncing' ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#5a5a40] shrink-0" />
+                  <span className="font-bold text-[#5a5a40]">동기화중</span>
+                </>
+              ) : syncStatus === 'synced' ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#3d5a3c] shrink-0" />
+                  <span className="font-bold text-[#3d5a3c]">동기화 완료</span>
+                </>
+              ) : syncStatus === 'error' ? (
+                <>
+                  <AlertCircle className="w-3.5 h-3.5 text-[#a84242] shrink-0" />
+                  <span className="font-bold text-[#a84242]">동기화 실패</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 text-[#5a5a40] shrink-0" />
+                  <span>수동 동기화</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={onOpenQR}
               className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-[#ebf0ea] hover:bg-[#d8e4d6] text-[#3d5a3c] text-xs sm:text-sm font-bold rounded-xl transition-colors border border-[#c8d9c6]"

@@ -8,8 +8,10 @@ import {
   Link2,
   Check,
   Share2,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
-import { SessionData } from '../types';
+import { SessionData, SyncStatus } from '../types';
 import { getPublicShareUrl } from '../utils/shareUrl';
 
 interface HeaderProps {
@@ -19,6 +21,8 @@ interface HeaderProps {
   selectedSessionId: string;
   onSelectSession: (id: string) => void;
   onOpenQR: () => void;
+  syncStatus: SyncStatus;
+  onManualSync: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,6 +32,8 @@ export const Header: React.FC<HeaderProps> = ({
   selectedSessionId,
   onSelectSession,
   onOpenQR,
+  syncStatus,
+  onManualSync,
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const currentSession = sessions.find((s) => s.id === selectedSessionId);
@@ -98,6 +104,52 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Manual Sync Button with Rotating Icon and Status Text */}
+            <button
+              id="btn-header-manual-sync"
+              onClick={onManualSync}
+              disabled={syncStatus === 'syncing'}
+              title={
+                syncStatus === 'syncing'
+                  ? '클라우드와 데이터 동기화 진행 중...'
+                  : syncStatus === 'synced'
+                  ? '최신 데이터로 동기화 완료되었습니다 (클릭하여 다시 동기화)'
+                  : '클라우드 및 로컬 데이터 즉시 동기화'
+              }
+              className={`inline-flex items-center space-x-1.5 px-3 py-2 text-xs sm:text-sm rounded-xl transition-all shadow-2xs ${
+                syncStatus === 'syncing'
+                  ? 'bg-[#f2f2eb] text-[#5a5a40] border border-[#d6d6c8] cursor-wait'
+                  : syncStatus === 'synced'
+                  ? 'bg-[#ebf0ea] text-[#3d5a3c] border border-[#c8d9c6] hover:bg-[#dfeade]'
+                  : syncStatus === 'error'
+                  ? 'bg-[#fcedeb] text-[#a84242] border border-[#f0c2bd] hover:bg-[#fae2df]'
+                  : 'bg-[#fcfcf9] hover:bg-[#f0f0e8] text-[#4a4a40] border border-[#e2e2d8]'
+              }`}
+            >
+              {syncStatus === 'syncing' ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#5a5a40] shrink-0" />
+                  <span className="font-bold text-[#5a5a40]">동기화중</span>
+                </>
+              ) : syncStatus === 'synced' ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#3d5a3c] shrink-0" />
+                  <span className="font-bold text-[#3d5a3c]">동기화 완료</span>
+                </>
+              ) : syncStatus === 'error' ? (
+                <>
+                  <AlertCircle className="w-3.5 h-3.5 text-[#a84242] shrink-0" />
+                  <span className="font-bold text-[#a84242]">동기화 재시도</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 text-[#5a5a40] shrink-0" />
+                  <span className="font-semibold text-[#4a4a40] hidden sm:inline">동기화</span>
+                  <span className="font-semibold text-[#4a4a40] sm:hidden">동기화</span>
+                </>
+              )}
+            </button>
 
             {/* Quick Share Link Button */}
             <button

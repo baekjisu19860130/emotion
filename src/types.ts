@@ -60,6 +60,8 @@ export interface BeforeAfterPair {
   status: 'both' | 'before_only' | 'after_only';
 }
 
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error';
+
 export interface GasConfig {
   webhookUrl: string;
   sheetId?: string;

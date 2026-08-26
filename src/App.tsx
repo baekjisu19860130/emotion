@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { MainSelector } from './components/MainSelector';
 import { BeforeStep } from './components/BeforeStep';
@@ -13,6 +13,7 @@ import {
   EmotionWord,
   GasConfig,
   SupabaseConfig,
+  SyncStatus,
 } from './types';
 
 export default function App() {
@@ -28,10 +29,22 @@ export default function App() {
     AttendanceStorage.getSupabaseConfig()
   );
 
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const syncTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [currentView, setCurrentView] = useState<'participant' | 'admin'>('participant');
   const [participantStep, setParticipantStep] = useState<'select' | 'before' | 'after'>('select');
   const [selectedStudentName, setSelectedStudentName] = useState<string>('');
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+
+  // Trigger "동기화 완료" notification and revert to idle after 3.5s
+  const triggerSyncedNotification = useCallback(() => {
+    setSyncStatus('synced');
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      setSyncStatus('idle');
+    }, 3500);
+  }, []);
 
   // Refresh data from local and Supabase cloud
   const refreshAllData = useCallback(async () => {
@@ -55,6 +68,30 @@ export default function App() {
       setSelectedSessionId(loadedSessions[0].id);
     }
   }, [selectedSessionId]);
+
+  // Manual Sync Button Handler
+  const handleManualSync = useCallback(async () => {
+    setSyncStatus('syncing');
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+
+    const startTime = Date.now();
+    try {
+      await refreshAllData();
+      // Ensure at least 600ms of spinning so user clearly observes the sync progress
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 600) {
+        await new Promise((r) => setTimeout(r, 600 - elapsed));
+      }
+      triggerSyncedNotification();
+    } catch (e) {
+      console.error('Manual sync error:', e);
+      setSyncStatus('error');
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = setTimeout(() => {
+        setSyncStatus('idle');
+      }, 3500);
+    }
+  }, [refreshAllData, triggerSyncedNotification]);
 
   // Initialize data on mount
   useEffect(() => {
@@ -94,51 +131,76 @@ export default function App() {
     return () => {
       unsubscribeRealtime();
       clearInterval(pollTimer);
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     };
   }, [refreshAllData]);
 
   const currentSession =
     sessions.find((s) => s.id === selectedSessionId) || sessions[0];
 
-  // Handlers for Responses
+  // Handlers for Responses - Fast Auto-sync with visual feedback
   const handleAddResponse = (
     newResp: Omit<EmotionResponse, 'id' | 'timestamp' | 'date'>
   ) => {
+    setSyncStatus('syncing');
     const created = AttendanceStorage.addResponse(newResp);
     setResponses(AttendanceStorage.getResponses());
+    setTimeout(() => {
+      triggerSyncedNotification();
+    }, 300);
   };
 
-  // Handlers for Sessions
+  // Handlers for Sessions - Fast Auto-sync with visual feedback
   const handleAddSession = (
     sessionData: Omit<SessionData, 'id' | 'createdAt'>
   ) => {
+    setSyncStatus('syncing');
     const created = AttendanceStorage.addSession(sessionData);
     setSessions(AttendanceStorage.getSessions());
     setSelectedSessionId(created.id);
+    setTimeout(() => {
+      triggerSyncedNotification();
+    }, 300);
   };
 
   const handleUpdateSession = (updated: SessionData) => {
+    setSyncStatus('syncing');
     const list = AttendanceStorage.updateSession(updated);
     setSessions(list);
+    setTimeout(() => {
+      triggerSyncedNotification();
+    }, 300);
   };
 
   const handleDeleteSession = (sessionId: string) => {
+    setSyncStatus('syncing');
     const list = AttendanceStorage.deleteSession(sessionId);
     setSessions(list);
     if (selectedSessionId === sessionId && list.length > 0) {
       setSelectedSessionId(list[0].id);
     }
+    setTimeout(() => {
+      triggerSyncedNotification();
+    }, 300);
   };
 
   // Handlers for Emotions Dictionary
   const handleUpdateEmotionWords = (words: EmotionWord[]) => {
+    setSyncStatus('syncing');
     AttendanceStorage.saveEmotionWords(words);
     setEmotionWords(words);
+    setTimeout(() => {
+      triggerSyncedNotification();
+    }, 300);
   };
 
   const handleResetEmotionWords = () => {
+    setSyncStatus('syncing');
     const defaults = AttendanceStorage.resetEmotionWords();
     setEmotionWords(defaults);
+    setTimeout(() => {
+      triggerSyncedNotification();
+    }, 300);
   };
 
   // Handler for GAS Config
@@ -149,9 +211,12 @@ export default function App() {
 
   // Handler for Supabase Config
   const handleUpdateSupabaseConfig = (config: SupabaseConfig) => {
+    setSyncStatus('syncing');
     AttendanceStorage.saveSupabaseConfig(config);
     setSupabaseConfig(config);
-    refreshAllData();
+    refreshAllData().then(() => {
+      triggerSyncedNotification();
+    });
   };
 
   // CSV Export
@@ -195,6 +260,8 @@ export default function App() {
           setParticipantStep('select');
         }}
         onOpenQR={() => setIsQRModalOpen(true)}
+        syncStatus={syncStatus}
+        onManualSync={handleManualSync}
       />
 
       {/* Main Content Area */}
@@ -247,9 +314,11 @@ export default function App() {
             emotionWords={emotionWords}
             gasConfig={gasConfig}
             supabaseConfig={supabaseConfig}
+            syncStatus={syncStatus}
+            onManualSync={handleManualSync}
             onUpdateGasConfig={handleUpdateGasConfig}
             onUpdateSupabaseConfig={handleUpdateSupabaseConfig}
-            onRefreshCloudData={refreshAllData}
+            onRefreshCloudData={handleManualSync}
             onUpdateEmotionWords={handleUpdateEmotionWords}
             onResetEmotionWords={handleResetEmotionWords}
             onAddSession={handleAddSession}
