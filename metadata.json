@@ -1,0 +1,6 @@
+{
+  "name": "마음 출석부 (Before & After)",
+  "description": "수업 시작 전 기대감과 수업 후 소감 및 감정 변화를 기록하여 교육 효과를 측정하고 피드백을 수집하는 감정 체크인 웹앱",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
