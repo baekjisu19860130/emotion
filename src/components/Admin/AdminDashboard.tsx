@@ -18,6 +18,7 @@ import {
   EmotionWord,
   BeforeAfterPair,
   GasConfig,
+  SupabaseConfig,
 } from '../../types';
 import { AdminSummaryTab } from './AdminSummaryTab';
 import { AdminMatchingTab } from './AdminMatchingTab';
@@ -25,6 +26,8 @@ import { AdminAIReportTab } from './AdminAIReportTab';
 import { AdminSessionTab } from './AdminSessionTab';
 import { AdminEmotionTab } from './AdminEmotionTab';
 import { AdminGasTab } from './AdminGasTab';
+import { AdminSupabaseTab } from './AdminSupabaseTab';
+import { Database } from 'lucide-react';
 
 interface AdminDashboardProps {
   sessions: SessionData[];
@@ -34,7 +37,10 @@ interface AdminDashboardProps {
   pairs: BeforeAfterPair[];
   emotionWords: EmotionWord[];
   gasConfig: GasConfig;
+  supabaseConfig: SupabaseConfig;
   onUpdateGasConfig: (config: GasConfig) => void;
+  onUpdateSupabaseConfig: (config: SupabaseConfig) => void;
+  onRefreshCloudData: () => Promise<void>;
   onUpdateEmotionWords: (words: EmotionWord[]) => void;
   onResetEmotionWords: () => void;
   onAddSession: (session: Omit<SessionData, 'id' | 'createdAt'>) => void;
@@ -51,6 +57,7 @@ type AdminTab =
   | 'ai_report'
   | 'sessions'
   | 'emotions'
+  | 'supabase'
   | 'gas';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -61,7 +68,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   pairs,
   emotionWords,
   gasConfig,
+  supabaseConfig,
   onUpdateGasConfig,
+  onUpdateSupabaseConfig,
+  onRefreshCloudData,
   onUpdateEmotionWords,
   onResetEmotionWords,
   onAddSession,
@@ -194,6 +204,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </button>
 
           <button
+            id="tab-admin-supabase"
+            onClick={() => setActiveTab('supabase')}
+            className={`inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+              activeTab === 'supabase'
+                ? 'bg-[#3d5a3c] text-[#f5f5f0] shadow-xs'
+                : 'text-[#5a5a4e] hover:text-[#2d2d26] hover:bg-[#eaeae0]'
+            }`}
+          >
+            <Database className="w-4 h-4 text-[#a3b899]" />
+            <span>Supabase 클라우드 동기화</span>
+            {supabaseConfig.url && (
+              <span className="w-2 h-2 rounded-full bg-[#a3b899] animate-pulse" />
+            )}
+          </button>
+
+          <button
             id="tab-admin-gas"
             onClick={() => setActiveTab('gas')}
             className={`inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
@@ -246,6 +272,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           emotionWords={emotionWords}
           onUpdateEmotionWords={onUpdateEmotionWords}
           onResetEmotionWords={onResetEmotionWords}
+        />
+      )}
+
+      {activeTab === 'supabase' && (
+        <AdminSupabaseTab
+          supabaseConfig={supabaseConfig}
+          onUpdateSupabaseConfig={onUpdateSupabaseConfig}
+          sessions={sessions}
+          responses={responses}
+          onRefreshData={onRefreshCloudData}
         />
       )}
 

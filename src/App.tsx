@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainSelector } from './components/MainSelector';
 import { BeforeStep } from './components/BeforeStep';
@@ -6,11 +6,13 @@ import { AfterStep } from './components/AfterStep';
 import { AdminDashboard } from './components/Admin/AdminDashboard';
 import { PresentationModal } from './components/PresentationModal';
 import { AttendanceStorage } from './services/storage';
+import { SupabaseService } from './services/supabase';
 import {
   SessionData,
   EmotionResponse,
   EmotionWord,
   GasConfig,
+  SupabaseConfig,
 } from './types';
 
 export default function App() {
@@ -22,11 +24,37 @@ export default function App() {
     webhookUrl: '',
     autoSync: false,
   });
+  const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(() =>
+    AttendanceStorage.getSupabaseConfig()
+  );
 
   const [currentView, setCurrentView] = useState<'participant' | 'admin'>('participant');
   const [participantStep, setParticipantStep] = useState<'select' | 'before' | 'after'>('select');
   const [selectedStudentName, setSelectedStudentName] = useState<string>('');
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+
+  // Refresh data from local and Supabase cloud
+  const refreshAllData = useCallback(async () => {
+    if (SupabaseService.isConfigured()) {
+      const result = await AttendanceStorage.pullFromSupabase();
+      if (result.synced) {
+        setSessions(result.sessions);
+        setResponses(result.responses);
+        if (!selectedSessionId && result.sessions.length > 0) {
+          setSelectedSessionId(result.sessions[0].id);
+        }
+        return;
+      }
+    }
+    // Local storage fallback
+    const loadedSessions = AttendanceStorage.getSessions();
+    const loadedResponses = AttendanceStorage.getResponses();
+    setSessions(loadedSessions);
+    setResponses(loadedResponses);
+    if (!selectedSessionId && loadedSessions.length > 0) {
+      setSelectedSessionId(loadedSessions[0].id);
+    }
+  }, [selectedSessionId]);
 
   // Initialize data on mount
   useEffect(() => {
@@ -34,6 +62,7 @@ export default function App() {
     const loadedResponses = AttendanceStorage.getResponses();
     const loadedEmotions = AttendanceStorage.getEmotionWords();
     const loadedGas = AttendanceStorage.getGasConfig();
+    const loadedSupabase = AttendanceStorage.getSupabaseConfig();
 
     setSessions(loadedSessions);
     if (loadedSessions.length > 0) {
@@ -42,7 +71,31 @@ export default function App() {
     setResponses(loadedResponses);
     setEmotionWords(loadedEmotions);
     setGasConfig(loadedGas);
-  }, []);
+    setSupabaseConfig(loadedSupabase);
+
+    // Initial pull from Supabase if configured
+    refreshAllData();
+
+    // Supabase Realtime Subscription
+    let unsubscribeRealtime = () => {};
+    if (SupabaseService.isConfigured()) {
+      unsubscribeRealtime = SupabaseService.subscribeToChanges(() => {
+        refreshAllData();
+      });
+    }
+
+    // Background periodic poll every 10 seconds for multi-device sync guarantee
+    const pollTimer = setInterval(() => {
+      if (SupabaseService.isConfigured()) {
+        refreshAllData();
+      }
+    }, 10000);
+
+    return () => {
+      unsubscribeRealtime();
+      clearInterval(pollTimer);
+    };
+  }, [refreshAllData]);
 
   const currentSession =
     sessions.find((s) => s.id === selectedSessionId) || sessions[0];
@@ -92,6 +145,13 @@ export default function App() {
   const handleUpdateGasConfig = (config: GasConfig) => {
     AttendanceStorage.saveGasConfig(config);
     setGasConfig(config);
+  };
+
+  // Handler for Supabase Config
+  const handleUpdateSupabaseConfig = (config: SupabaseConfig) => {
+    AttendanceStorage.saveSupabaseConfig(config);
+    setSupabaseConfig(config);
+    refreshAllData();
   };
 
   // CSV Export
@@ -186,7 +246,10 @@ export default function App() {
             pairs={pairs}
             emotionWords={emotionWords}
             gasConfig={gasConfig}
+            supabaseConfig={supabaseConfig}
             onUpdateGasConfig={handleUpdateGasConfig}
+            onUpdateSupabaseConfig={handleUpdateSupabaseConfig}
+            onRefreshCloudData={refreshAllData}
             onUpdateEmotionWords={handleUpdateEmotionWords}
             onResetEmotionWords={handleResetEmotionWords}
             onAddSession={handleAddSession}

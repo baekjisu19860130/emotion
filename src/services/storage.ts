@@ -5,9 +5,11 @@ import {
   BeforeAfterPair,
   GasConfig,
   AIAnalysisReport,
+  SupabaseConfig,
 } from '../types';
 import { INITIAL_SESSIONS, INITIAL_RESPONSES } from '../data/initialData';
 import { INITIAL_EMOTION_WORDS } from '../data/defaultEmotions';
+import { SupabaseService } from './supabase';
 
 const SESSIONS_KEY = 'mind_attendance_sessions_v1';
 const RESPONSES_KEY = 'mind_attendance_responses_v1';
@@ -52,6 +54,8 @@ export class AttendanceStorage {
     };
     const updated = [created, ...sessions];
     this.saveSessions(updated);
+    // Background Supabase sync
+    SupabaseService.upsertSession(created).catch(() => {});
     return created;
   }
 
@@ -59,6 +63,7 @@ export class AttendanceStorage {
     const sessions = this.getSessions();
     const updated = sessions.map((s) => (s.id === session.id ? session : s));
     this.saveSessions(updated);
+    SupabaseService.upsertSession(session).catch(() => {});
     return updated;
   }
 
@@ -66,6 +71,7 @@ export class AttendanceStorage {
     const sessions = this.getSessions();
     const updated = sessions.filter((s) => s.id !== sessionId);
     this.saveSessions(updated);
+    SupabaseService.deleteSession(sessionId).catch(() => {});
     return updated;
   }
 
@@ -163,7 +169,64 @@ export class AttendanceStorage {
     // If Google Apps Script Webhook is configured, push to GAS
     this.syncToGasWebhook(newEntry);
 
+    // If Supabase is configured, push in real-time
+    SupabaseService.upsertResponse(newEntry).catch((err) => {
+      console.warn('Background Supabase upsert error:', err);
+    });
+
     return newEntry;
+  }
+
+  // --- Supabase Config & Sync Helpers ---
+  static getSupabaseConfig(): SupabaseConfig {
+    return SupabaseService.getConfig();
+  }
+
+  static saveSupabaseConfig(config: SupabaseConfig) {
+    SupabaseService.saveConfig(config);
+  }
+
+  static async pullFromSupabase(): Promise<{
+    sessions: SessionData[];
+    responses: EmotionResponse[];
+    synced: boolean;
+  }> {
+    if (!SupabaseService.isConfigured()) {
+      return {
+        sessions: this.getSessions(),
+        responses: this.getResponses(),
+        synced: false,
+      };
+    }
+
+    try {
+      const [cloudSessions, cloudResponses] = await Promise.all([
+        SupabaseService.fetchSessions(),
+        SupabaseService.fetchResponses(),
+      ]);
+
+      let sessions = this.getSessions();
+      let responses = this.getResponses();
+
+      if (cloudSessions && cloudSessions.length > 0) {
+        sessions = cloudSessions;
+        localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+      }
+
+      if (cloudResponses && cloudResponses.length > 0) {
+        responses = cloudResponses;
+        localStorage.setItem(RESPONSES_KEY, JSON.stringify(responses));
+      }
+
+      return { sessions, responses, synced: true };
+    } catch (err) {
+      console.warn('Failed to pull from Supabase:', err);
+      return {
+        sessions: this.getSessions(),
+        responses: this.getResponses(),
+        synced: false,
+      };
+    }
   }
 
   static clearResponsesForSession(sessionId: string) {

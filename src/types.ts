@@ -67,6 +67,14 @@ export interface GasConfig {
   lastSyncedAt?: string;
 }
 
+export interface SupabaseConfig {
+  url: string;
+  anonKey: string;
+  autoSync: boolean;
+  isConnected?: boolean;
+  lastSyncedAt?: string;
+}
+
 export interface AIAnalysisReport {
   generatedAt: string;
   sessionTitle: string;
